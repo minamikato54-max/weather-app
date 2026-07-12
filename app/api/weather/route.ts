@@ -38,6 +38,54 @@ interface OwmForecastResponse {
   city: { timezone: number }
 }
 
+interface OwmGeoResult {
+  name: string
+  lat: number
+  lon: number
+  country: string
+  local_names?: Record<string, string>
+}
+
+// 「都」「道」「府」「県」「市」「区」「町」「村」などの行政区分接尾辞を除いた
+// 見出し語同士でも一致とみなし、「京都市」→「京都」のような表記ゆれを吸収する。
+const ADMIN_SUFFIX_RE = /(都|道府県|府|県|市|区|町|村)$/
+
+function stripAdminSuffix(value: string): string {
+  return value.replace(ADMIN_SUFFIX_RE, "")
+}
+
+function namesMatch(query: string, candidateName: string | undefined): boolean {
+  if (!candidateName) return false
+  const q = query.trim()
+  const c = candidateName.trim()
+  if (!q || !c) return false
+  if (q === c || q.includes(c) || c.includes(q)) return true
+
+  const qStripped = stripAdminSuffix(q)
+  const cStripped = stripAdminSuffix(c)
+  if (!qStripped || !cStripped) return false
+  return (
+    qStripped === cStripped ||
+    qStripped.includes(cStripped) ||
+    cStripped.includes(qStripped)
+  )
+}
+
+// OpenWeatherMapのGeocoding APIは検索精度が高くなく、無関係な地名を
+// 返すことがあるため、入力文字列と実際に一致する候補だけを採用する。
+function pickBestGeoMatch(
+  query: string,
+  candidates: OwmGeoResult[]
+): OwmGeoResult | null {
+  for (const candidate of candidates) {
+    if (namesMatch(query, candidate.name)) return candidate
+    for (const localName of Object.values(candidate.local_names ?? {})) {
+      if (namesMatch(query, localName)) return candidate
+    }
+  }
+  return null
+}
+
 function formatLabel(date: Date, index: number): string {
   if (index === 0) return "今日"
   if (index === 1) return "明日"
@@ -131,11 +179,14 @@ export async function GET(request: NextRequest) {
 
   let lat: number
   let lon: number
+  // 都市名検索でジオコーディングにより確定した表示名。
+  // Current Weather APIの座標逆引き名（ピンポイントな地名になりがち）より優先する。
+  let resolvedCityName: string | undefined
 
   try {
     if (city) {
       const geoRes = await fetch(
-        `${GEO_URL}?q=${encodeURIComponent(city)}&limit=1&appid=${apiKey}`
+        `${GEO_URL}?q=${encodeURIComponent(city)}&limit=5&appid=${apiKey}`
       )
       if (!geoRes.ok) {
         return NextResponse.json(
@@ -143,18 +194,17 @@ export async function GET(request: NextRequest) {
           { status: 502 }
         )
       }
-      const geoData = (await geoRes.json()) as Array<{
-        lat: number
-        lon: number
-      }>
-      if (geoData.length === 0) {
+      const geoData = (await geoRes.json()) as OwmGeoResult[]
+      const match = pickBestGeoMatch(city, geoData)
+      if (!match) {
         return NextResponse.json(
           { error: "都市が見つかりませんでした" },
           { status: 404 }
         )
       }
-      lat = geoData[0].lat
-      lon = geoData[0].lon
+      lat = match.lat
+      lon = match.lon
+      resolvedCityName = match.local_names?.ja ?? match.name
     } else if (latParam && lonParam) {
       lat = Number(latParam)
       lon = Number(lonParam)
@@ -193,7 +243,7 @@ export async function GET(request: NextRequest) {
     const days = aggregateForecast(forecast, current)
 
     const response: WeatherResponse = {
-      cityName: current.name,
+      cityName: resolvedCityName ?? current.name,
       country: current.sys.country,
       lat,
       lon,
