@@ -79,7 +79,13 @@ export default function Home() {
         setSelectedIndex(0)
 
         if (id) {
-          await recordHistory(id, result.cityName, result.lat, result.lon)
+          // 履歴保存はおまけ機能。Firestoreルール未設定などで失敗しても
+          // メインの天気表示には影響させない。
+          recordHistory(id, result.cityName, result.lat, result.lon).catch(
+            (err) => {
+              console.warn("検索履歴の保存に失敗しました", err)
+            }
+          )
         }
       } catch {
         setError("通信エラーが発生しました")
@@ -121,16 +127,27 @@ export default function Home() {
       (fav) => fav.lat === weather.lat && fav.lon === weather.lon
     )
     if (alreadyFavorited) return
-    await addFavorite(anonId, weather.cityName, weather.lat, weather.lon)
+    try {
+      await addFavorite(anonId, weather.cityName, weather.lat, weather.lon)
+    } catch (err) {
+      console.warn("お気に入りの追加に失敗しました", err)
+      setError(
+        "お気に入りの保存に失敗しました（Firestoreの設定を確認してください）"
+      )
+    }
   }
 
   const handleRemoveFavorite = async (favoriteId: string) => {
-    await removeFavorite(favoriteId)
-    setFavoritesWeather((prev) => {
-      const next = { ...prev }
-      delete next[favoriteId]
-      return next
-    })
+    try {
+      await removeFavorite(favoriteId)
+      setFavoritesWeather((prev) => {
+        const next = { ...prev }
+        delete next[favoriteId]
+        return next
+      })
+    } catch (err) {
+      console.warn("お気に入りの削除に失敗しました", err)
+    }
   }
 
   const selectedDay = weather?.days[selectedIndex]

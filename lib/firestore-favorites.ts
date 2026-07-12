@@ -29,23 +29,30 @@ export function subscribeFavorites(
     collection(db, FAVORITES_COLLECTION),
     where("anonId", "==", anonId)
   )
-  return onSnapshot(q, (snapshot) => {
-    const favorites = snapshot.docs
-      .map((d) => {
-        const data = d.data()
-        return {
-          id: d.id,
-          anonId: data.anonId,
-          cityName: data.cityName,
-          lat: data.lat,
-          lon: data.lon,
-          createdAt:
-            (data.createdAt as Timestamp | undefined)?.toMillis() ?? Date.now(),
-        } satisfies FavoriteCity
-      })
-      .sort((a, b) => b.createdAt - a.createdAt)
-    callback(favorites)
-  })
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const favorites = snapshot.docs
+        .map((d) => {
+          const data = d.data()
+          return {
+            id: d.id,
+            anonId: data.anonId,
+            cityName: data.cityName,
+            lat: data.lat,
+            lon: data.lon,
+            createdAt:
+              (data.createdAt as Timestamp | undefined)?.toMillis() ??
+              Date.now(),
+          } satisfies FavoriteCity
+        })
+        .sort((a, b) => b.createdAt - a.createdAt)
+      callback(favorites)
+    },
+    (err) => {
+      console.warn("お気に入りの取得に失敗しました", err)
+    }
+  )
 }
 
 export async function addFavorite(
@@ -75,25 +82,31 @@ export function subscribeHistory(
     collection(db, HISTORY_COLLECTION),
     where("anonId", "==", anonId)
   )
-  return onSnapshot(q, (snapshot) => {
-    const history = snapshot.docs
-      .map((d) => {
-        const data = d.data()
-        return {
-          id: d.id,
-          anonId: data.anonId,
-          cityName: data.cityName,
-          lat: data.lat,
-          lon: data.lon,
-          searchedAt:
-            (data.searchedAt as Timestamp | undefined)?.toMillis() ??
-            Date.now(),
-        } satisfies HistoryEntry
-      })
-      .sort((a, b) => b.searchedAt - a.searchedAt)
-      .slice(0, HISTORY_LIMIT)
-    callback(history)
-  })
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const history = snapshot.docs
+        .map((d) => {
+          const data = d.data()
+          return {
+            id: d.id,
+            anonId: data.anonId,
+            cityName: data.cityName,
+            lat: data.lat,
+            lon: data.lon,
+            searchedAt:
+              (data.searchedAt as Timestamp | undefined)?.toMillis() ??
+              Date.now(),
+          } satisfies HistoryEntry
+        })
+        .sort((a, b) => b.searchedAt - a.searchedAt)
+        .slice(0, HISTORY_LIMIT)
+      callback(history)
+    },
+    (err) => {
+      console.warn("検索履歴の取得に失敗しました", err)
+    }
+  )
 }
 
 export async function recordHistory(
