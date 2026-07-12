@@ -99,18 +99,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /favorites/{docId} {
-      allow read, delete: if resource.data.anonId == request.resource.data.anonId
-                           || resource.data.anonId is string;
+      allow read: if true;
       allow create: if request.resource.data.anonId is string;
+      allow delete: if resource.data.anonId is string;
     }
     match /history/{docId} {
-      allow read, create: if request.resource.data.anonId is string;
+      allow read: if true;
+      allow create: if request.resource.data.anonId is string;
+      allow delete: if resource.data.anonId is string;
     }
   }
 }
 ```
 
 認証なし方式のため厳密な所有者検証はできない（NaviCastと同じ割り切り）。学習用アプリのため、個人情報を含まない都市名程度のデータに限定する。
+
+**修正履歴（2026-07-12）**: 初版のルールは `allow read, create: if request.resource.data.anonId is string;` のように書いていたが、`read`（一覧取得）時は`request.resource`が存在せず常に拒否になるバグがあった。また`history`の古い履歴削除（5件超過分）に必要な`delete`権限が抜けていた。上記の内容に修正済み。
 
 ---
 
