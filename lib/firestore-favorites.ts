@@ -10,6 +10,7 @@ import {
   getDocs,
   updateDoc,
   Timestamp,
+  type DocumentReference,
   type Unsubscribe,
 } from "firebase/firestore"
 import { db } from "./firebase"
@@ -128,10 +129,12 @@ export async function recordHistory(
     (d) => d.data().lat === lat && d.data().lon === lon
   )
 
+  let currentRef: DocumentReference
   if (existing) {
+    currentRef = existing.ref
     await updateDoc(existing.ref, { cityName, searchedAt: serverTimestamp() })
   } else {
-    await addDoc(collection(db, HISTORY_COLLECTION), {
+    currentRef = await addDoc(collection(db, HISTORY_COLLECTION), {
       anonId,
       cityName,
       lat,
@@ -140,13 +143,19 @@ export async function recordHistory(
     })
   }
 
-  // 直近5件を超えたら古いものを削除
+  // 直近5件を超えたら古いものを削除。
+  // 今書き込んだドキュメントはsearchedAt（serverTimestamp）がローカルキャッシュ上で
+  // まだ解決されておらずnullのことがあり、下のtoMillis()フォールバックで
+  // 「時刻0＝最も古い」と誤判定され、直後に削除されてしまうことがあった。
+  // これを避けるため、今書き込んだドキュメントは削除候補から常に除外する。
   const snapshot = await getDocs(q)
-  const sorted = snapshot.docs.sort((a, b) => {
-    const aTime = (a.data().searchedAt as Timestamp | undefined)?.toMillis() ?? 0
-    const bTime = (b.data().searchedAt as Timestamp | undefined)?.toMillis() ?? 0
-    return bTime - aTime
-  })
-  const excess = sorted.slice(HISTORY_LIMIT)
+  const sorted = snapshot.docs
+    .filter((d) => d.id !== currentRef.id)
+    .sort((a, b) => {
+      const aTime = (a.data().searchedAt as Timestamp | undefined)?.toMillis() ?? 0
+      const bTime = (b.data().searchedAt as Timestamp | undefined)?.toMillis() ?? 0
+      return bTime - aTime
+    })
+  const excess = sorted.slice(HISTORY_LIMIT - 1)
   await Promise.all(excess.map((d) => deleteDoc(d.ref)))
 }
