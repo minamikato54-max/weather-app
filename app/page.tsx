@@ -186,6 +186,7 @@ export default function Home() {
               country={weather.country}
               day={selectedDay}
               timezoneOffset={weather.timezoneOffset}
+              lat={weather.lat}
             />
             <button
               type="button"

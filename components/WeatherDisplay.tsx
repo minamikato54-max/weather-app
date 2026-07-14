@@ -1,11 +1,13 @@
 import type { DailyForecast } from "@/lib/weather-types"
 import { iconToEmoji } from "@/lib/weather-icons"
+import { buildAdvice } from "@/lib/weather-advice"
 
 interface Props {
   cityName: string
   country: string
   day: DailyForecast
   timezoneOffset: number
+  lat: number
 }
 
 function formatTime(unixSeconds: number | null, timezoneOffset: number): string {
@@ -16,8 +18,9 @@ function formatTime(unixSeconds: number | null, timezoneOffset: number): string 
   return `${h}:${m}`
 }
 
-export function WeatherDisplay({ cityName, country, day, timezoneOffset }: Props) {
+export function WeatherDisplay({ cityName, country, day, timezoneOffset, lat }: Props) {
   const mainTemp = day.tempCurrent ?? (day.tempMax + day.tempMin) / 2
+  const advice = buildAdvice(day, lat)
 
   return (
     <div className="w-full max-w-xl rounded-2xl bg-white/70 p-6 backdrop-blur-sm dark:bg-black/30">
@@ -60,6 +63,23 @@ export function WeatherDisplay({ cityName, country, day, timezoneOffset }: Props
           }
         />
       </div>
+
+      {advice.length > 0 && (
+        <div className="mt-6 flex flex-col gap-2">
+          <h3 className="text-xs font-semibold opacity-60">今日のアドバイス</h3>
+          <ul className="flex flex-col gap-2">
+            {advice.map((item, index) => (
+              <li
+                key={index}
+                className="flex items-start gap-2 rounded-xl bg-white/50 px-3 py-2 text-sm dark:bg-black/20"
+              >
+                <span aria-hidden>{item.icon}</span>
+                <span>{item.text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
