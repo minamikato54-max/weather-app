@@ -8,6 +8,7 @@ import {
   onSnapshot,
   serverTimestamp,
   getDocs,
+  updateDoc,
   Timestamp,
   type Unsubscribe,
 } from "firebase/firestore"
@@ -115,19 +116,31 @@ export async function recordHistory(
   lat: number,
   lon: number
 ): Promise<void> {
-  await addDoc(collection(db, HISTORY_COLLECTION), {
-    anonId,
-    cityName,
-    lat,
-    lon,
-    searchedAt: serverTimestamp(),
-  })
-
-  // 直近5件を超えたら古いものを削除
   const q = query(
     collection(db, HISTORY_COLLECTION),
     where("anonId", "==", anonId)
   )
+
+  // 同じ地点（緯度経度が一致）の履歴が既にあれば、新規作成せず検索日時だけ更新する。
+  // これをしないと同じ都市を検索するたびに重複レコードが増え、一覧が更新されないように見える。
+  const existingSnapshot = await getDocs(q)
+  const existing = existingSnapshot.docs.find(
+    (d) => d.data().lat === lat && d.data().lon === lon
+  )
+
+  if (existing) {
+    await updateDoc(existing.ref, { cityName, searchedAt: serverTimestamp() })
+  } else {
+    await addDoc(collection(db, HISTORY_COLLECTION), {
+      anonId,
+      cityName,
+      lat,
+      lon,
+      searchedAt: serverTimestamp(),
+    })
+  }
+
+  // 直近5件を超えたら古いものを削除
   const snapshot = await getDocs(q)
   const sorted = snapshot.docs.sort((a, b) => {
     const aTime = (a.data().searchedAt as Timestamp | undefined)?.toMillis() ?? 0

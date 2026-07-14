@@ -130,6 +130,7 @@ service cloud.firestore {
     match /history/{docId} {
       allow read: if true;
       allow create: if request.resource.data.anonId is string;
+      allow update: if resource.data.anonId is string;
       allow delete: if resource.data.anonId is string;
     }
   }
@@ -139,6 +140,8 @@ service cloud.firestore {
 認証なし方式のため厳密な所有者検証はできない（NaviCastと同じ割り切り）。学習用アプリのため、個人情報を含まない都市名程度のデータに限定する。
 
 **修正履歴（2026-07-12）**: 初版のルールは `allow read, create: if request.resource.data.anonId is string;` のように書いていたが、`read`（一覧取得）時は`request.resource`が存在せず常に拒否になるバグがあった。また`history`の古い履歴削除（5件超過分）に必要な`delete`権限が抜けていた。上記の内容に修正済み。
+
+**修正履歴（2026-07-14）**: 同じ都市を再検索した際に既存の履歴レコードを更新（`searchedAt`を上書きし先頭に移動）する仕様に変更したため、`history`に`update`権限を追加。**この変更はFirebaseコンソールのRulesタブへの再貼り付け・Publishが必要（コードの変更だけでは反映されない）。**
 
 ---
 
