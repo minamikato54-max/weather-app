@@ -1,4 +1,4 @@
-const CACHE_NAME = "weather-app-cache-v1"
+const CACHE_NAME = "weather-app-cache-v2"
 const OFFLINE_URLS = ["/"]
 
 self.addEventListener("install", (event) => {
@@ -43,8 +43,15 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
-  // それ以外はキャッシュ優先、なければネットワークから取得
+  // それ以外もネットワーク優先。キャッシュ優先だとデプロイ後も古いHTML/JSが
+  // ブラウザに残り続けてしまうため、オフライン時のみキャッシュにフォールバックする。
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request))
+    fetch(request)
+      .then((response) => {
+        const clone = response.clone()
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+        return response
+      })
+      .catch(() => caches.match(request))
   )
 })

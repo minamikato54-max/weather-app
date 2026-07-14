@@ -77,7 +77,7 @@
 | データベース | Firebase Firestore |
 | ホスティング/デプロイ | Vercel |
 | バージョン管理 | GitHub（リポジトリ名: `weather-app`、Public） |
-| PWA | Next.js標準の `app/manifest.ts` + 最小構成の Service Worker（`public/sw.js`） |
+| PWA | Next.js標準の `app/manifest.ts` + 最小構成の Service Worker（`public/sw.js`）。キャッシュ戦略はネットワーク優先＋オフライン時のみキャッシュにフォールバック（**修正履歴（2026-07-14）**参照） |
 
 ### APIキーの扱い方針
 - OpenWeatherMapのAPIキーは **サーバー側のみ**で使用（`OPENWEATHER_API_KEY`、`NEXT_PUBLIC_`なし）。クライアントからは直接叩かず、Next.jsのAPI Route（`app/api/weather/route.ts`）を経由してプロキシする。これにより本番ビルドにもキーが露出しない。
@@ -142,6 +142,8 @@ service cloud.firestore {
 **修正履歴（2026-07-12）**: 初版のルールは `allow read, create: if request.resource.data.anonId is string;` のように書いていたが、`read`（一覧取得）時は`request.resource`が存在せず常に拒否になるバグがあった。また`history`の古い履歴削除（5件超過分）に必要な`delete`権限が抜けていた。上記の内容に修正済み。
 
 **修正履歴（2026-07-14）**: 同じ都市を再検索した際に既存の履歴レコードを更新（`searchedAt`を上書きし先頭に移動）する仕様に変更したため、`history`に`update`権限を追加。**この変更はFirebaseコンソールのRulesタブへの再貼り付け・Publishが必要（コードの変更だけでは反映されない）。**
+
+**修正履歴（2026-07-14）**: `public/sw.js`がAPI以外の全リクエストを「キャッシュ優先」で返す設計だったため、初回訪問時にキャッシュされたトップページのHTML/JSがデプロイ後も永久に使われ続けるバグがあった（`CACHE_NAME`もデプロイ間で固定のままだった）。「ネットワーク優先、オフライン時のみキャッシュにフォールバック」に変更し、`CACHE_NAME`を`v2`に更新して既存キャッシュを破棄させるようにした。
 
 ---
 
